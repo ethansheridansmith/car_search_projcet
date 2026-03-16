@@ -10,7 +10,6 @@ from typing import Optional
 from dotenv import load_dotenv
 from sqlalchemy import (
     Boolean,
-    DateTime,
     Float,
     ForeignKey,
     Integer,
@@ -18,6 +17,7 @@ from sqlalchemy import (
     create_engine,
     event,
 )
+from sqlalchemy.types import TypeDecorator
 from sqlalchemy.orm import DeclarativeBase, Mapped, Session, mapped_column, relationship
 
 load_dotenv()
@@ -42,6 +42,34 @@ def set_sqlite_pragma(dbapi_connection, connection_record):
     cursor.execute("PRAGMA journal_mode=WAL")
     cursor.execute("PRAGMA foreign_keys=ON")
     cursor.close()
+
+
+def _now_iso() -> str:
+    """Return current UTC time in Prisma-compatible ISO 8601 format."""
+    return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.") + \
+           f"{datetime.now(timezone.utc).microsecond // 1000:03d}Z"
+
+
+class PrismaDateTime(TypeDecorator):
+    """
+    Stores datetimes as ISO 8601 strings compatible with Prisma's SQLite driver.
+    Prisma expects 'YYYY-MM-DDTHH:MM:SS.mmmZ' — not Python's default format.
+    """
+    impl = String
+    cache_ok = True
+
+    def process_bind_param(self, value, dialect):
+        if value is None:
+            return None
+        if isinstance(value, str):
+            return value  # already formatted
+        # Convert datetime to Prisma-compatible string
+        if value.tzinfo is None:
+            value = value.replace(tzinfo=timezone.utc)
+        return value.strftime("%Y-%m-%dT%H:%M:%S.") + f"{value.microsecond // 1000:03d}Z"
+
+    def process_result_value(self, value, dialect):
+        return value  # return as string; Prisma handles the parsing
 
 
 class Base(DeclarativeBase):
@@ -73,13 +101,13 @@ class Listing(Base):
     fingerprint: Mapped[str] = mapped_column(String, unique=True, nullable=False)
     firstSeen: Mapped[datetime] = mapped_column(
         "firstSeen",
-        DateTime,
+        PrismaDateTime,
         default=lambda: datetime.now(timezone.utc),
         nullable=False,
     )
     lastSeen: Mapped[datetime] = mapped_column(
         "lastSeen",
-        DateTime,
+        PrismaDateTime,
         default=lambda: datetime.now(timezone.utc),
         onupdate=lambda: datetime.now(timezone.utc),
         nullable=False,
@@ -104,7 +132,7 @@ class PriceHistory(Base):
     price: Mapped[int] = mapped_column(Integer, nullable=False)
     recordedAt: Mapped[datetime] = mapped_column(
         "recordedAt",
-        DateTime,
+        PrismaDateTime,
         default=lambda: datetime.now(timezone.utc),
         nullable=False,
     )
@@ -120,7 +148,7 @@ class SavedSearch(Base):
     filters: Mapped[str] = mapped_column(String, nullable=False)
     lastViewed: Mapped[datetime] = mapped_column(
         "lastViewed",
-        DateTime,
+        PrismaDateTime,
         default=lambda: datetime.now(timezone.utc),
         nullable=False,
     )
@@ -131,7 +159,7 @@ class SavedSearch(Base):
     )
     createdAt: Mapped[datetime] = mapped_column(
         "createdAt",
-        DateTime,
+        PrismaDateTime,
         default=lambda: datetime.now(timezone.utc),
         nullable=False,
     )
@@ -152,7 +180,7 @@ class SavedCar(Base):
     priceAtSave: Mapped[int] = mapped_column("priceAtSave", Integer, nullable=False)
     savedAt: Mapped[datetime] = mapped_column(
         "savedAt",
-        DateTime,
+        PrismaDateTime,
         default=lambda: datetime.now(timezone.utc),
         nullable=False,
     )
@@ -170,7 +198,7 @@ class Alert(Base):
     listingId: Mapped[str] = mapped_column("listingId", String, nullable=False)
     sentAt: Mapped[datetime] = mapped_column(
         "sentAt",
-        DateTime,
+        PrismaDateTime,
         default=lambda: datetime.now(timezone.utc),
         nullable=False,
     )

@@ -1,0 +1,96 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Listing {
+  id           String   @id @default(cuid())
+  title        String
+  make         String
+  model        String
+  trim         String?
+  year         Int
+  price        Int
+  mileage      Int?
+  fuelType     String?
+  transmission String?
+  colour       String?
+  engineSize   String?
+  sellerType   String?
+  location     String?
+  distance     Float?
+  listingUrl   String   @unique
+  source       String
+  imageUrls    String   @default("[]")
+  vin          String?
+  fingerprint  String   @unique
+  firstSeen    DateTime @default(now())
+  lastSeen     DateTime @updatedAt
+  isActive     Boolean  @default(true)
+
+  priceHistory PriceHistory[]
+  savedBy      SavedCar[]
+}
+
+model SavedSearch {
+  id           String   @id @default(cuid())
+  name         String
+  filters      String
+  lastViewed   DateTime @default(now())
+  newCount     Int      @default(0)
+  emailAlert   Boolean  @default(false)
+  desktopAlert Boolean  @default(true)
+  createdAt    DateTime @default(now())
+
+  alerts Alert[]
+}
+
+model SavedCar {
+  id          String   @id @default(cuid())
+  listingId   String
+  listing     Listing  @relation(fields: [listingId], references: [id])
+  notes       String?
+  priceAtSave Int
+  savedAt     DateTime @default(now())
+}
+
+model PriceHistory {
+  id         String   @id @default(cuid())
+  listingId  String
+  listing    Listing  @relation(fields: [listingId], references: [id])
+  price      Int
+  recordedAt DateTime @default(now())
+}
+
+model Alert {
+  id            String      @id @default(cuid())
+  savedSearchId String
+  savedSearch   SavedSearch @relation(fields: [savedSearchId], references: [id])
+  listingId     String
+  sentAt        DateTime    @default(now())
+  type          String
+}
+
+model Settings {
+  id                    Int     @id @default(autoincrement())
+  postcode              String  @default("BS7 8NE")
+  scrapeIntervalMinutes Int     @default(30)
+  maxResultsPerSource   Int     @default(50)
+  autotraderEnabled     Boolean @default(true)
+  motorsEnabled         Boolean @default(true)
+  gumtreeEnabled        Boolean @default(true)
+  ebayEnabled           Boolean @default(true)
+  emailEnabled          Boolean @default(false)
+  smtpHost              String?
+  smtpPort              Int?
+  smtpUser              String?
+  smtpPass              String?
+  alertEmail            String?
+}
